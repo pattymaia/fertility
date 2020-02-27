@@ -1,0 +1,68 @@
+#Upload dataset
+library(readr)
+fertility <- read_csv("fertility.csv")
+summary(fertility)
+
+#Convert column output in 1 and 0.
+for (i in 1:nrow(fertility)) {
+  if (fertility$output[i] == "N") {
+    fertility$output[i] <- 1
+  }else if (fertility$output[i] == "O") {
+      fertility$output[i] <- 0 
+  } else {
+    fertility$output[i] <- ""
+  }
+}
+
+summary(fertility)#output = character class
+
+#Transform 1/0 as numeric
+fertility$output<-as.numeric(fertility$output)
+summary(fertility)
+
+fertility$age1<- NA
+for (i in 1:nrow(fertility)) {
+  fertility$age1[i] <- fertility$age[i]*18+18
+}
+
+######Logistic Regression 
+##All variables
+fert_logit<- glm(output~ season+ age1+ childish_disease+ accident + surgical_inter+ high_fever+ frequency_alcohol+ smoking + sitting,
+                 data= fertility, family = "binomial")
+summary(fert_logit)
+
+#Removing surgical_inter 
+fert_logit<- glm(output~ season+ age1+ childish_disease+ accident + high_fever+ frequency_alcohol+ smoking + sitting,
+                 data= fertility, family = "binomial")
+summary(fert_logit)
+
+#Removing childish_disease and smoking
+fert_logit<- glm(output~ season+ age1+  accident + high_fever+ frequency_alcohol+ sitting,
+                 data= fertility, family = "binomial")
+summary(fert_logit)
+
+#Removing Sitting (lower AIC)
+fert_logit<- glm(output~ season+ age1+  accident + high_fever+ frequency_alcohol,
+                 data= fertility, family = "binomial")
+summary(fert_logit)
+
+#####Tree
+library(rpart)
+library(rpart.plot)
+fert_tree<- rpart(output~season+age1+childish_disease+accident+surgical_inter+high_fever+frequency_alcohol+smoking+sitting,
+                  data=fertility,method="class",cp=0.001)
+rpart.plot(fert_tree, extra=1, type=1)
+
+#####Compare models
+library(ROCR)
+tree_fert_pred<-predict(fert_tree, fertility, type="prob")
+logit_fert_pred<-predict(fert_logit, fertility,type="response")
+
+perd_tree<-prediction(tree_fert_pred[,2],fertility$output)
+perd_logit<-prediction(logit_fert_pred, fertility$output)
+
+perf_tree<-performance(perd_tree, "tpr", "fpr")
+perf_logit<-performance(perd_logit, "tpr", "fpr")
+
+plot(perf_tree, col="black")
+plot(perf_logit, col="red", add=TRUE)
